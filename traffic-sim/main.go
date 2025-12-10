@@ -1,7 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	//"traffic-sim/sim"
+	//"traffic-sim/output"
+)
 
-func main(){
-  fmt.Println()
-  }
+func main() {
+
+	fmt.Println("")
+
+}
