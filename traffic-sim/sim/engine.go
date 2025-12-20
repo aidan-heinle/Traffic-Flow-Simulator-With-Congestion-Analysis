@@ -2,74 +2,77 @@ package sim
 
 // create world + road segments
 func InitalizeWorld() World {
-	S1 := RoadSegment{
-		SegmentID:    1,
-		Length:       25.0,
-		LaneCount:    4,
-		CarCount:     10,
-		AverageSpeed: 31.3,
+
+	segments := []RoadSegment{
+		{SegmentID: 1, Length: 25.0, LaneCount: 4, CarCount: 10, AverageSpeed: 31.3},
+		{SegmentID: 2, Length: 50.0, LaneCount: 3, CarCount: 7, AverageSpeed: 33.4},
+		{SegmentID: 3, Length: 45.0, LaneCount: 2, CarCount: 5, AverageSpeed: 30.0},
 	}
 
-	S2 := RoadSegment{
-		SegmentID:    2,
-		Length:       50.0,
-		LaneCount:    3,
-		CarCount:     7,
-		AverageSpeed: 33.4,
-	}
-
-	S3 := RoadSegment{
-		SegmentID:    3,
-		Length:       45.0,
-		LaneCount:    2,
-		CarCount:     5,
-		AverageSpeed: 30.0,
-	}
-
-	SimulationWorld := World{
-		SegmentList: []RoadSegment{S1, S2, S3},
+	world := World{
+		SegmentList: segments,
 		TickCount:   100,
 	}
 
-	return SimulationWorld
+	world.CommandChannels = make([]chan SegmentCommand, len(segments))
+	world.ResultChannels = make([]chan TickData, len(segments))
 
-}
+	for i := range segments {
 
-// updates a single RoadSegment for a single tick
-// returns Density
-func UpdateSegment(seg *RoadSegment, newCarCount int, newAvgSpeed float64) float64 {
-	seg.CarCount = newCarCount
-	seg.AverageSpeed = newAvgSpeed
+		cmdChan := make(chan SegmentCommand)
+		resChan := make(chan TickData)
 
-	density := float64(seg.CarCount) / (float64(seg.LaneCount) * seg.Length)
+		world.CommandChannels[i] = cmdChan
+		world.ResultChannels[i] = resChan
 
-	return density
+		go SegmentWorker(&world.SegmentList[i], cmdChan, resChan)
+
+	}
+
+	return world
 }
 
 // Runs one tick of the World
 // Updates every segment once
 func RunStep(world *World, tickNumber int) []TickData {
 
-	tickOutput := make([]TickData, 0, len(world.SegmentList))
+	results := make([]TickData, len(world.SegmentList))
 
 	for i := range world.SegmentList {
-		seg := &world.SegmentList[i]
+		world.CommandChannels[i] <- SegmentCommand{Tick: tickNumber}
+	}
 
-		newCarCount := seg.CarCount     // Placeholder value
-		newAvgSpeed := seg.AverageSpeed // Placeholder value
+	for i := range world.SegmentList {
+		res := <-world.ResultChannels[i]
+		results[i] = res
+	}
 
-		density := UpdateSegment(seg, newCarCount, newAvgSpeed)
+	return results
 
-		tickOutput = append(tickOutput, TickData{
-			TickNumber:   tickNumber,
+}
+
+func SegmentWorker(
+	seg *RoadSegment,
+	commandChan <-chan SegmentCommand,
+	resultChan chan<- TickData,
+) {
+
+	for cmd := range commandChan {
+
+		newCarCount := seg.CarCount // placeholder
+		// newAvgSpeed := seg.AverageSpeed // placeholder
+
+		density := float64(newCarCount) / (float64(seg.LaneCount) * seg.Length)
+
+		resultChan <- TickData{
+			TickNumber:   cmd.Tick,
 			LaneCount:    seg.LaneCount,
 			CarCount:     seg.CarCount,
 			AverageSpeed: seg.AverageSpeed,
 			Density:      density,
-			Capacity:     0.0, // Placeholder
-		})
+			Capacity:     0.0, // placeholder
+		}
+
 	}
-	return tickOutput
 
 }
-
